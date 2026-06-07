@@ -11,5 +11,3 @@ flatpak/pip-deps/
 *.log
 *.tmp
 .env
-# Desktop OAuth credentials — keep off public repo to avoid GitHub secret scanning
-src/cloudsync/core/client_secret.json
