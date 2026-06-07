@@ -1,0 +1,97 @@
+{
+    "app-id": "com.seravault.cloudsync",
+    "runtime": "org.gnome.Platform",
+    "runtime-version": "49",
+    "sdk": "org.gnome.Sdk",
+    "command": "cloudsync",
+    "finish-args": [
+        "--share=network",
+        "--share=ipc",
+        "--socket=wayland",
+        "--socket=fallback-x11",
+        "--device=dri",
+        "--filesystem=xdg-download",
+        "--filesystem=xdg-documents",
+        "--filesystem=xdg-pictures",
+        "--filesystem=xdg-music",
+        "--filesystem=xdg-videos",
+        "--filesystem=xdg-desktop",
+        "--filesystem=xdg-config/cloudsync:create",
+        "--filesystem=xdg-data/cloudsync:create",
+        "--talk-name=org.freedesktop.Notifications",
+        "--talk-name=org.a11y.Bus",
+        "--talk-name=org.kde.StatusNotifierWatcher",
+        "--talk-name=org.kde.StatusNotifierItem",
+        "--talk-name=com.canonical.AppMenu.Registrar",
+        "--talk-name=org.x.StatusNotifierWatcher",
+        "--talk-name=org.x.StatusIconMonitor.*",
+        "--own-name=org.x.StatusIcon.*",
+        "--own-name=org.kde.StatusNotifierItem-cloudsync"
+    ],
+    "modules": [
+        {
+            "name": "libxapp",
+            "buildsystem": "meson",
+            "config-opts": [
+                "-Ddocs=false",
+                "-Dapp-lib-only=true",
+                "-Dintrospection=true",
+                "-Dvapi=false",
+                "-Dpy-overrides-dir=/app/lib/python3.13/site-packages/gi/overrides"
+            ],
+            "post-install": [
+                "mkdir -p /app/lib/girepository-1.0",
+                "cp /app/lib64/girepository-1.0/XApp-1.0.typelib /app/lib/girepository-1.0/",
+                "cp /app/lib64/libxapp.so.1 /app/lib/libxapp.so.1",
+                "cp /app/lib64/libxapp.so.3.3.1 /app/lib/libxapp.so.3.3.1",
+                "ln -sf libxapp.so.1 /app/lib/libxapp.so"
+            ],
+            "sources": [
+                {
+                    "type": "archive",
+                    "url": "https://github.com/linuxmint/xapp/archive/refs/tags/master.mint22.tar.gz",
+                    "sha256": "cf2952ba926469ffd8804dd2e4c3068f8ae7dc765b034dba7457f16b6f61e42c"
+                }
+            ]
+        },
+        {
+            "name": "python3-pip-deps",
+            "buildsystem": "simple",
+            "build-commands": [
+                "pip3 install --prefix=/app --no-index --find-links=. setuptools google-auth google-auth-oauthlib google-api-python-client watchdog boto3 msal requests dropbox"
+            ],
+            "sources": [
+                {
+                    "type": "dir",
+                    "path": "pip-deps"
+                }
+            ]
+        },
+        {
+            "name": "cloudsync",
+            "buildsystem": "simple",
+            "build-commands": [
+                "pip3 install --prefix=/app --no-deps --no-build-isolation .",
+                "install -Dm644 data/com.seravault.cloudsync.desktop /app/share/applications/com.seravault.cloudsync.desktop",
+                "install -Dm644 data/com.seravault.cloudsync-gdoc-handler.desktop /app/share/applications/com.seravault.cloudsync-gdoc-handler.desktop",
+                "install -Dm755 data/open-gdoc-link.sh /app/bin/open-gdoc-link.sh",
+                "install -Dm644 data/com.seravault.cloudsync-gdoc-mimetypes.xml /app/share/mime/packages/com.seravault.cloudsync-gdoc-mimetypes.xml",
+                "install -Dm644 data/icons/com.seravault.cloudsync.svg /app/share/icons/hicolor/scalable/apps/com.seravault.cloudsync.svg",
+                "install -Dm644 flatpak/com.seravault.cloudsync.metainfo.xml /app/share/metainfo/com.seravault.cloudsync.metainfo.xml",
+                "python3 scripts/build_help.py",
+                "install -Dm644 data/help.html /app/share/doc/com.seravault.cloudsync/help.html",
+                "install -Dm644 data/docs/user-guide.md /app/share/doc/com.seravault.cloudsync/user-guide.md"
+            ],
+            "post-install": [
+                "update-mime-database /app/share/mime",
+                "update-desktop-database /app/share/applications"
+            ],
+            "sources": [
+                {
+                    "type": "dir",
+                    "path": ".."
+                }
+            ]
+        }
+    ]
+}

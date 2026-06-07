@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Open Cloud Document Link
+Comment=Open a Google Workspace or Microsoft OneNote link file in the browser
+Exec=open-gdoc-link.sh %f
+Icon=com.seravault.cloudsync
+Terminal=false
+NoDisplay=true
+MimeType=application/x-gdoc;application/x-gsheet;application/x-gslides;application/x-gdraw;application/x-gform;application/x-gscript;application/x-gsite;application/x-gmap;application/x-onenote-link;

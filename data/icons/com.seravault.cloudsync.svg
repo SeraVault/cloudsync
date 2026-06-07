@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <defs>
+    <!-- SeraVault accent: green to blue -->
+    <linearGradient id="accent" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#00f078"/>
+      <stop offset="100%" stop-color="#42a5f5"/>
+    </linearGradient>
+
+    <!-- Drop shadow for legibility on light and dark backgrounds -->
+    <filter id="shadow" x="-8%" y="-8%" width="116%" height="124%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="3" result="blur"/>
+      <feOffset dx="0" dy="2" result="offsetBlur"/>
+      <feFlood flood-color="#000000" flood-opacity="0.35" result="color"/>
+      <feComposite in="color" in2="offsetBlur" operator="in" result="shadow"/>
+      <feMerge>
+        <feMergeNode in="shadow"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Cloud clip so arrow stays inside -->
+    <clipPath id="cloudClip">
+      <circle cx="28" cy="62" r="20"/>
+      <circle cx="50" cy="44" r="26"/>
+      <circle cx="80" cy="48" r="23"/>
+      <circle cx="102" cy="62" r="18"/>
+      <!-- Fluffy bottom bumps -->
+      <circle cx="22" cy="76" r="15"/>
+      <circle cx="42" cy="82" r="17"/>
+      <circle cx="64" cy="85" r="17"/>
+      <circle cx="86" cy="82" r="16"/>
+      <circle cx="108" cy="76" r="14"/>
+      <!-- Fill gaps between top and bottom -->
+      <rect x="10" y="56" width="108" height="22"/>
+    </clipPath>
+  </defs>
+
+  <!-- Cloud body: top bumps + fluffy bottom bumps -->
+  <g fill="white" opacity="0.95" filter="url(#shadow)">
+    <!-- Top bumps -->
+    <circle cx="28" cy="62" r="20"/>
+    <circle cx="50" cy="44" r="26"/>
+    <circle cx="80" cy="48" r="23"/>
+    <circle cx="102" cy="62" r="18"/>
+    <!-- Solid middle fill -->
+    <rect x="10" y="56" width="108" height="22"/>
+    <!-- Fluffy bottom bumps -->
+    <circle cx="22" cy="76" r="15"/>
+    <circle cx="42" cy="82" r="17"/>
+    <circle cx="64" cy="85" r="17"/>
+    <circle cx="86" cy="82" r="16"/>
+    <circle cx="108" cy="76" r="14"/>
+  </g>
+
+  <!-- Circular sync arrow — centered in cloud -->
+  <path d="M 59.50 83.00 A 24 24 0 1 0 40.00 67.00"
+        fill="none"
+        stroke="url(#accent)"
+        stroke-width="7"
+        stroke-linecap="round"
+        clip-path="url(#cloudClip)"/>
+
+  <!-- Arrowhead at arc end -->
+  <polygon points="43.50,77.00 31.50,70.00 48.00,63.50"
+           fill="#00f078"
+           clip-path="url(#cloudClip)"/>
+</svg>

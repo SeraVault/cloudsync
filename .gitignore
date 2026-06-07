@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+dist/
+build/
+.flatpak-builder/
+.flatpak-build/
+*.flatpak
+flatpak/pip-deps/
+*.log
+*.tmp
+.env
+# Desktop OAuth credentials — keep off public repo to avoid GitHub secret scanning
+src/cloudsync/core/client_secret.json

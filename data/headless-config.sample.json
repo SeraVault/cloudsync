@@ -1,0 +1,36 @@
+{
+  "sync_folders": [
+    {
+      "local_path": "/home/YOUR_USER/CloudSync/Documents",
+      "remote_folder_id": "root",
+      "remote_folder_name": "Documents",
+      "provider": "gdrive",
+      "enabled": true,
+      "sync_interval_seconds": 0,
+      "schedule": ""
+    },
+    {
+      "local_path": "/home/YOUR_USER/CloudSync/Shared",
+      "remote_folder_id": "/Shared",
+      "remote_folder_name": "Shared",
+      "provider": "dropbox",
+      "enabled": true,
+      "sync_interval_seconds": 0,
+      "schedule": ""
+    }
+  ],
+  "connected_providers": [
+    {
+      "provider": "gdrive",
+      "display_name": "your-email@example.com"
+    },
+    {
+      "provider": "dropbox",
+      "display_name": "Dropbox account"
+    }
+  ],
+  "sync_interval_seconds": 300,
+  "notifications_enabled": false,
+  "start_on_login": false,
+  "conflict_resolution": "keep_both"
+}

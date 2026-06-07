@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+
+  <mime-type type="application/x-gdoc">
+    <comment>Google Document link</comment>
+    <glob pattern="*.gdoc"/>
+    <icon name="x-office-document"/>
+  </mime-type>
+
+  <mime-type type="application/x-gsheet">
+    <comment>Google Spreadsheet link</comment>
+    <glob pattern="*.gsheet"/>
+    <icon name="x-office-spreadsheet"/>
+  </mime-type>
+
+  <mime-type type="application/x-gslides">
+    <comment>Google Presentation link</comment>
+    <glob pattern="*.gslides"/>
+    <icon name="x-office-presentation"/>
+  </mime-type>
+
+  <mime-type type="application/x-gdraw">
+    <comment>Google Drawing link</comment>
+    <glob pattern="*.gdraw"/>
+    <icon name="image-x-generic"/>
+  </mime-type>
+
+  <mime-type type="application/x-gform">
+    <comment>Google Form link</comment>
+    <glob pattern="*.gform"/>
+    <icon name="text-x-generic"/>
+  </mime-type>
+
+  <mime-type type="application/x-gscript">
+    <comment>Google Apps Script link</comment>
+    <glob pattern="*.gscript"/>
+    <icon name="text-x-script"/>
+  </mime-type>
+
+  <mime-type type="application/x-gsite">
+    <comment>Google Site link</comment>
+    <glob pattern="*.gsite"/>
+    <icon name="text-html"/>
+  </mime-type>
+
+  <mime-type type="application/x-gmap">
+    <comment>Google Map link</comment>
+    <glob pattern="*.gmap"/>
+    <icon name="applications-internet"/>
+  </mime-type>
+
+  <mime-type type="application/x-onenote-link">
+    <comment>Microsoft OneNote notebook link</comment>
+    <glob pattern="*.onenote"/>
+    <icon name="x-office-document"/>
+  </mime-type>
+
+</mime-info>

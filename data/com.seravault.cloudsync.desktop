@@ -1,0 +1,13 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=CloudSync
+GenericName=File Synchronizer
+Comment=Sync files with cloud storage providers
+Exec=cloudsync
+Icon=com.seravault.cloudsync
+Terminal=false
+Categories=Utility;FileManager;GNOME;GTK;
+Keywords=sync;cloud;drive;google;s3;onedrive;backup;
+StartupNotify=true
+StartupWMClass=com.seravault.cloudsync

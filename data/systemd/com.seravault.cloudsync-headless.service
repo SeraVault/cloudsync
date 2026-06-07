@@ -1,0 +1,10 @@
+[Unit]
+Description=SeraVault CloudSync headless sync (Flatpak)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/flatpak run --command=cloudsync-headless com.seravault.cloudsync --config=%h/.config/cloudsync-headless/config.json
+StandardOutput=journal
+StandardError=journal

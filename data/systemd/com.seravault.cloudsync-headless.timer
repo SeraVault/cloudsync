@@ -1,0 +1,11 @@
+[Unit]
+Description=Run SeraVault CloudSync headless sync on a schedule
+
+[Timer]
+OnCalendar=hourly
+Persistent=true
+RandomizedDelaySec=120
+Unit=com.seravault.cloudsync-headless.service
+
+[Install]
+WantedBy=timers.target

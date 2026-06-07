@@ -1,0 +1,14 @@
+google-auth>=2.0
+google-auth-oauthlib>=1.0
+google-api-python-client>=2.0
+watchdog>=3.0
+PyGObject>=3.44
+boto3>=1.26
+msal>=1.20
+requests>=2.28
+dropbox>=11.36
+# WebKit2GTK (optional but recommended for in-app sign-in)
+# Install the system package instead of pip:
+#   sudo apt install gir1.2-webkit2-4.1   # Ubuntu 22.04+
+#   sudo apt install gir1.2-webkit-6.0    # Ubuntu 24.04+ / Fedora 39+
+#   sudo dnf install webkitgtk6.0         # Fedora
