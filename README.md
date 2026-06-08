@@ -10,9 +10,9 @@ CloudSync is free to use with one cloud provider and one sync folder. **CloudSyn
 | Sync folders | 1 | Unlimited |
 | Two-way sync | ✓ | ✓ |
 | Desktop notifications | ✓ | ✓ |
-| Automatic updates | — | ✓ |
+| Automatic updates | ✓ | ✓ |
 
-Subscribe at [cloudsync.seravault.com](https://cloudsync.seravault.com). The app continues to function after a subscription lapses — you just won't receive new versions until it's renewed.
+Subscribe at [cloudsync.seravault.com](https://cloudsync.seravault.com). The app continues to function after a subscription lapses — free tier limits apply, but updates continue for all users regardless of subscription status.
 
 ---
 
