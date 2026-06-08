@@ -1,7 +1,7 @@
 {
     "app-id": "com.seravault.cloudsync",
     "runtime": "org.gnome.Platform",
-    "runtime-version": "49",
+    "runtime-version": "50",
     "sdk": "org.gnome.Sdk",
     "command": "cloudsync",
     "finish-args": [
@@ -16,17 +16,13 @@
         "--filesystem=xdg-music",
         "--filesystem=xdg-videos",
         "--filesystem=xdg-desktop",
-        "--filesystem=xdg-config/cloudsync:create",
-        "--filesystem=xdg-data/cloudsync:create",
         "--talk-name=org.freedesktop.Notifications",
         "--talk-name=org.a11y.Bus",
         "--talk-name=org.kde.StatusNotifierWatcher",
         "--talk-name=org.kde.StatusNotifierItem",
         "--talk-name=com.canonical.AppMenu.Registrar",
         "--talk-name=org.x.StatusNotifierWatcher",
-        "--talk-name=org.x.StatusIconMonitor.*",
-        "--own-name=org.x.StatusIcon.*",
-        "--own-name=org.kde.StatusNotifierItem-cloudsync"
+        "--talk-name=org.x.StatusIconMonitor.*"
     ],
     "modules": [
         {
