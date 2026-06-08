@@ -1,13 +1,44 @@
+# Python
 __pycache__/
 *.py[cod]
+*.pyo
 *.egg-info/
-.venv/
+.eggs/
 dist/
 build/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Flatpak build artifacts
 .flatpak-builder/
 .flatpak-build/
+repo/
 *.flatpak
+*.flatpakref
 flatpak/pip-deps/
+
+# Sensitive credentials
+src/cloudsync/core/client_secret.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Misc
 *.log
 *.tmp
 .env
+
+# Pytest / coverage
+.pytest_cache/
+.coverage
+htmlcov/

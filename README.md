@@ -267,10 +267,7 @@ To add a new provider: implement `CloudStorageClient` (see `sync/base.py`), add 
 ```bash
 git clone https://github.com/SeraVault/cloudsync.git
 cd cloudsync
-bash install.sh
 ```
-
-The install script creates a virtualenv, installs dependencies, and registers the app with your desktop.
 
 **System dependencies (Ubuntu / Debian / Mint):**
 
@@ -281,11 +278,44 @@ sudo apt install \
     gir1.2-webkit2-4.1          # or gir1.2-webkit-6.0
 ```
 
-**To build the Flatpak:**
+### Development virtualenv
+
+PyGObject requires system GTK libraries that cannot be installed via pip alone. Create the venv with `--system-site-packages` so it inherits the system-installed `gi` bindings:
 
 ```bash
-bash build-flatpak.sh
+python3 -m venv --system-site-packages .venv
+source .venv/bin/activate
+pip install -e .
 ```
+
+After activation, run the app directly:
+
+```bash
+cloudsync
+```
+
+### Building the Flatpak
+
+Requires `flatpak-builder` and the GNOME SDK:
+
+```bash
+flatpak install flathub org.gnome.Sdk//49 org.gnome.Platform//49
+```
+
+Then run the build script:
+
+```bash
+# Build only
+./scripts/build_flatpak.sh
+
+# Build and install for the current user
+./scripts/build_flatpak.sh --install
+
+# Build and export a .flatpak bundle file
+./scripts/build_flatpak.sh --bundle
+```
+
+The script downloads pip wheels for the Flatpak runtime into `flatpak/pip-deps/` on the first run. Delete that directory to force a re-download.
 
 **Requirements:**
 
