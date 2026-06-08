@@ -2,10 +2,13 @@
 # Build the com.seravault.cloudsync Flatpak.
 #
 # Usage:
-#   ./scripts/build_flatpak.sh [--install] [--bundle]
+#   ./scripts/build_flatpak.sh [--install] [--bundle] [--regen-deps]
 #
-#   --install   Install the built app into the user Flatpak repo after building.
-#   --bundle    Export a .flatpak bundle file after building.
+#   --install     Install the built app into the user Flatpak repo after building.
+#   --bundle      Export a .flatpak bundle file after building.
+#   --regen-deps  Re-run flatpak-pip-generator to update flatpak/python3-pip-deps.json.
+#                 Requires flatpak-pip-generator.py (download from
+#                 https://github.com/flatpak/flatpak-builder-tools/tree/master/pip).
 
 set -euo pipefail
 
@@ -16,18 +19,20 @@ MANIFEST="${ROOT_DIR}/flatpak/com.seravault.cloudsync.json"
 APP_ID="com.seravault.cloudsync"
 BUILD_DIR="${ROOT_DIR}/.flatpak-builder"
 REPO_DIR="${ROOT_DIR}/repo"
-PIP_DEPS_DIR="${ROOT_DIR}/flatpak/pip-deps"
+PIP_DEPS_JSON="${ROOT_DIR}/flatpak/python3-pip-deps.json"
 
 INSTALL=false
 BUNDLE=false
+REGEN_DEPS=false
 
 for arg in "$@"; do
     case "${arg}" in
-        --install) INSTALL=true ;;
-        --bundle)  BUNDLE=true ;;
+        --install)    INSTALL=true ;;
+        --bundle)     BUNDLE=true ;;
+        --regen-deps) REGEN_DEPS=true ;;
         *)
             echo "Unknown argument: ${arg}"
-            echo "Usage: $0 [--install] [--bundle]"
+            echo "Usage: $0 [--install] [--bundle] [--regen-deps]"
             exit 1
             ;;
     esac
@@ -35,44 +40,41 @@ done
 
 # ── Dependency checks ────────────────────────────────────────────────────────
 
-for cmd in flatpak-builder flatpak pip; do
+for cmd in flatpak-builder flatpak; do
     if ! command -v "${cmd}" &>/dev/null; then
         echo "Error: '${cmd}' is not installed or not on PATH." >&2
         exit 1
     fi
 done
 
-# ── Download pip dependencies (if needed) ────────────────────────────────────
-# The manifest sources pip packages from flatpak/pip-deps/ as a local dir.
-# Re-run this step whenever requirements change.
+# ── Regenerate pip deps manifest (optional) ──────────────────────────────────
+# flatpak/python3-pip-deps.json is committed to the repo and only needs
+# regenerating when Python dependencies change. Run with --regen-deps to update.
 
-if [[ ! -d "${PIP_DEPS_DIR}" ]] || [[ -z "$(ls -A "${PIP_DEPS_DIR}")" ]]; then
-    echo "==> Downloading pip dependencies into flatpak/pip-deps/ ..."
-    mkdir -p "${PIP_DEPS_DIR}"
-    # Use the venv pip if available so the resolver matches the target Python.
-    PIP_CMD=".venv/bin/pip"
-    if [[ ! -x "${ROOT_DIR}/${PIP_CMD}" ]]; then
-        PIP_CMD="pip"
+if [[ "${REGEN_DEPS}" == true ]]; then
+    GENERATOR="$(command -v flatpak-pip-generator.py 2>/dev/null || echo "")"
+    if [[ -z "${GENERATOR}" ]]; then
+        echo "Error: flatpak-pip-generator.py not found on PATH." >&2
+        echo "Download from: https://github.com/flatpak/flatpak-builder-tools/tree/master/pip" >&2
+        exit 1
     fi
-    "${ROOT_DIR}/${PIP_CMD}" download \
-        --dest "${PIP_DEPS_DIR}" \
-        --python-version "3.13" \
-        --only-binary=:all: \
-        --platform manylinux2014_x86_64 \
-        --platform manylinux_2_17_x86_64 \
-        --platform linux_x86_64 \
-        --implementation cp \
-        setuptools \
-        google-auth \
-        google-auth-oauthlib \
-        google-api-python-client \
-        watchdog \
-        boto3 \
-        msal \
-        requests \
-        dropbox
-else
-    echo "==> pip-deps/ already populated — skipping download (delete to force re-download)."
+    PIP_CMD="${ROOT_DIR}/.venv/bin/python3"
+    if [[ ! -x "${PIP_CMD}" ]]; then
+        PIP_CMD="python3"
+    fi
+    echo "==> Regenerating flatpak/python3-pip-deps.json ..."
+    "${PIP_CMD}" "${GENERATOR}" \
+        --runtime "org.gnome.Sdk//49" \
+        --output "${PIP_DEPS_JSON%.json}" \
+        --prefer-wheels watchdog,cryptography,protobuf \
+        google-auth google-auth-oauthlib google-api-python-client \
+        watchdog boto3 msal requests dropbox
+    echo "==> Done — commit flatpak/python3-pip-deps.json before submitting to Flathub."
+fi
+
+if [[ ! -f "${PIP_DEPS_JSON}" ]]; then
+    echo "Error: ${PIP_DEPS_JSON} not found. Run with --regen-deps to generate it." >&2
+    exit 1
 fi
 
 # ── Build ────────────────────────────────────────────────────────────────────

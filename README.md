@@ -315,7 +315,13 @@ Then run the build script:
 ./scripts/build_flatpak.sh --bundle
 ```
 
-The script downloads pip wheels for the Flatpak runtime into `flatpak/pip-deps/` on the first run. Delete that directory to force a re-download.
+`flatpak/python3-pip-deps.json` is committed to the repo and contains all pip dependencies as URL + SHA-256 entries suitable for Flathub review. To regenerate it after changing Python dependencies, download [`flatpak-pip-generator.py`](https://github.com/flatpak/flatpak-builder-tools/tree/master/pip) and run:
+
+```bash
+./scripts/build_flatpak.sh --regen-deps
+```
+
+Commit the updated `flatpak/python3-pip-deps.json` before submitting a Flathub PR.
 
 **Requirements:**
 

@@ -54,19 +54,7 @@
                 }
             ]
         },
-        {
-            "name": "python3-pip-deps",
-            "buildsystem": "simple",
-            "build-commands": [
-                "pip3 install --prefix=/app --no-index --find-links=. setuptools google-auth google-auth-oauthlib google-api-python-client watchdog boto3 msal requests dropbox"
-            ],
-            "sources": [
-                {
-                    "type": "dir",
-                    "path": "pip-deps"
-                }
-            ]
-        },
+        "python3-pip-deps.json",
         {
             "name": "cloudsync",
             "buildsystem": "simple",
