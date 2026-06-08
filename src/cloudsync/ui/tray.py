@@ -419,9 +419,10 @@ class TrayIcon:
         iface = self._node_info.interfaces[0]
         menu_iface = self._dbusmenu_node_info.interfaces[0]
         # Connect to the session bus directly — no well-known name ownership
-        # needed.  The SNI watcher accepts an object path and uses the sender's
-        # unique connection name (e.g. :1.123) to reach us, which works inside
-        # the Flatpak sandbox without any --own-name finish-arg.
+        # needed.  RegisterStatusNotifierItem accepts a unique bus name (e.g.
+        # :1.123) and the watcher calls back the SNI interface at the standard
+        # /StatusNotifierItem object path on that connection. Works inside the
+        # Flatpak sandbox without any --own-name finish-arg.
         try:
             conn = Gio.bus_get_sync(Gio.BusType.SESSION, None)
         except Exception as exc:
@@ -452,7 +453,7 @@ class TrayIcon:
                 "/StatusNotifierWatcher",
                 "org.kde.StatusNotifierWatcher",
                 "RegisterStatusNotifierItem",
-                GLib.Variant("(s)", (_SNI_OBJECT_PATH,)),  # pass object path; watcher uses unique name
+                GLib.Variant("(s)", (conn.get_unique_name(),)),  # unique name, e.g. :1.123
                 None,
                 Gio.DBusCallFlags.NONE,
                 -1,
