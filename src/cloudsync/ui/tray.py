@@ -26,6 +26,8 @@ from gi.repository import GLib, Gio
 if TYPE_CHECKING:
     from ..app import CloudSyncApp
 
+from .. import APP_ID  # noqa: E402  (must be after gi.require_version)
+
 log = logging.getLogger(__name__)
 
 # ── Cinnamon org.x.StatusIcon ─────────────────────────────────────────────── #
@@ -419,10 +421,10 @@ class TrayIcon:
         iface = self._node_info.interfaces[0]
         menu_iface = self._dbusmenu_node_info.interfaces[0]
         # Connect to the session bus directly — no well-known name ownership
-        # needed.  RegisterStatusNotifierItem accepts a unique bus name (e.g.
-        # :1.123) and the watcher calls back the SNI interface at the standard
-        # /StatusNotifierItem object path on that connection. Works inside the
-        # Flatpak sandbox without any --own-name finish-arg.
+        # needed.  We pass the app's own well-known name (com.seravault.cloudsync)
+        # to RegisterStatusNotifierItem; Flatpak automatically allows the proxy
+        # to forward calls addressed to the app's own ID, so the watcher can
+        # reach /StatusNotifierItem on the app's existing bus connection.
         try:
             conn = Gio.bus_get_sync(Gio.BusType.SESSION, None)
         except Exception as exc:
@@ -453,7 +455,7 @@ class TrayIcon:
                 "/StatusNotifierWatcher",
                 "org.kde.StatusNotifierWatcher",
                 "RegisterStatusNotifierItem",
-                GLib.Variant("(s)", (conn.get_unique_name(),)),  # unique name, e.g. :1.123
+                GLib.Variant("(s)", (APP_ID,)),  # app's own well-known name; proxy always allows calls to it
                 None,
                 Gio.DBusCallFlags.NONE,
                 -1,
