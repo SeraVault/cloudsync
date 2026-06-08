@@ -96,6 +96,7 @@ _XSI_IFACE_XML = """
 _SNI_BUS_NAME    = "org.kde.StatusNotifierItem-cloudsync"
 _SNI_OBJECT_PATH = "/StatusNotifierItem"
 _SNI_WATCHER     = "org.kde.StatusNotifierWatcher"
+_SNI_WATCHER_X   = "org.x.StatusNotifierWatcher"  # XFCE / LXQt fallback
 _DBUSMENU_PATH   = "/MenuBar"
 
 _SNI_IFACE_XML = """
@@ -260,6 +261,7 @@ class TrayIcon:
         self._reg_id: int = 0
         self._objmgr_reg_id: int = 0
         self._dbusmenu_reg_id: int = 0
+        self._active_watcher: str = _SNI_WATCHER  # may be overridden to _SNI_WATCHER_X
         self._tooltip: str = "CloudSync — Google Drive sync"
         self._protocol: str = ""  # "xsi" | "sni" | ""
         self._menu_revision: int = 1
@@ -279,15 +281,19 @@ class TrayIcon:
 
         has_xsi = _has_bus_prefix(conn, "org.x.StatusIconMonitor.")
         has_sni = _has_bus_prefix(conn, _SNI_WATCHER)
-        log.debug("Tray: bus scan — xsi_monitor=%s sni_watcher=%s", has_xsi, has_sni)
+        has_sni_x = not has_sni and _has_bus_prefix(conn, _SNI_WATCHER_X)
+        log.debug("Tray: bus scan — xsi_monitor=%s sni_watcher=%s sni_watcher_x=%s",
+                  has_xsi, has_sni, has_sni_x)
 
         if has_xsi:
             self._protocol = "xsi"
             log.debug("Tray: Cinnamon detected — using org.x.StatusIcon")
             self._start_xsi()
-        elif has_sni:
+        elif has_sni or has_sni_x:
             self._protocol = "sni"
-            log.debug("Tray: SNI watcher detected — using StatusNotifierItem")
+            self._active_watcher = _SNI_WATCHER if has_sni else _SNI_WATCHER_X
+            log.debug("Tray: SNI watcher detected (%s) — using StatusNotifierItem",
+                      self._active_watcher)
             self._start_sni()
         else:
             log.info("Tray: no supported tray host found (GNOME without extension?)")
@@ -331,8 +337,12 @@ class TrayIcon:
             log.info("Tray XSI: skipped in Flatpak sandbox — org.x.StatusIcon "
                      "bus name ownership not permitted; falling back to SNI")
             conn = Gio.bus_get_sync(Gio.BusType.SESSION, None)
-            if _has_bus_prefix(conn, _SNI_WATCHER):
+            if _has_bus_prefix(conn, _SNI_WATCHER) or _has_bus_prefix(conn, _SNI_WATCHER_X):
                 self._protocol = "sni"
+                self._active_watcher = (
+                    _SNI_WATCHER if _has_bus_prefix(conn, _SNI_WATCHER)
+                    else _SNI_WATCHER_X
+                )
                 self._start_sni()
             else:
                 log.info("Tray: no SNI watcher found either; tray unavailable")
@@ -450,7 +460,7 @@ class TrayIcon:
         # Register with the watcher
         try:
             conn.call(
-                _SNI_WATCHER,
+                self._active_watcher,
                 "/StatusNotifierWatcher",
                 "org.kde.StatusNotifierWatcher",
                 "RegisterStatusNotifierItem",
