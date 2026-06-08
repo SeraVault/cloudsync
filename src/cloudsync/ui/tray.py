@@ -299,6 +299,7 @@ class TrayIcon:
             self._conn.unregister_object(self._dbusmenu_reg_id)
         if self._name_id:
             Gio.bus_unown_name(self._name_id)
+            self._name_id = 0
         self._reg_id = 0
         self._objmgr_reg_id = 0
         self._dbusmenu_reg_id = 0
@@ -321,6 +322,20 @@ class TrayIcon:
     # ------------------------------------------------------------------ #
 
     def _start_xsi(self) -> None:
+        # org.x.StatusIcon requires owning a well-known bus name, which is
+        # blocked by the Flatpak sandbox (Flathub disallows org.x.StatusIcon.*
+        # own-names).  Fall back to SNI if the SNI watcher is also present,
+        # otherwise the tray is unavailable in this environment.
+        if os.environ.get("FLATPAK_ID"):
+            log.info("Tray XSI: skipped in Flatpak sandbox — org.x.StatusIcon "
+                     "bus name ownership not permitted; falling back to SNI")
+            conn = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+            if _has_bus_prefix(conn, _SNI_WATCHER):
+                self._protocol = "sni"
+                self._start_sni()
+            else:
+                log.info("Tray: no SNI watcher found either; tray unavailable")
+            return
         self._node_info = Gio.DBusNodeInfo.new_for_xml(_XSI_IFACE_XML)
         self._objmgr_node_info = Gio.DBusNodeInfo.new_for_xml(_OBJMGR_IFACE_XML)
         iface = self._node_info.interfaces[0]
@@ -403,15 +418,16 @@ class TrayIcon:
         self._dbusmenu_node_info = Gio.DBusNodeInfo.new_for_xml(_DBUSMENU_IFACE_XML)
         iface = self._node_info.interfaces[0]
         menu_iface = self._dbusmenu_node_info.interfaces[0]
-        self._name_id = Gio.bus_own_name(
-            Gio.BusType.SESSION,
-            _SNI_BUS_NAME,
-            Gio.BusNameOwnerFlags.NONE,
-            lambda conn, name: self._sni_bus_acquired(conn, name, iface, menu_iface),
-            lambda conn, name: log.debug("Tray SNI name acquired: %s", name),
-            lambda conn, name: log.warning("Tray SNI name lost/denied: %s", name),
-        )
-        log.debug("Tray SNI: bus_own_name registered, waiting for callbacks…")
+        # Connect to the session bus directly — no well-known name ownership
+        # needed.  The SNI watcher accepts an object path and uses the sender's
+        # unique connection name (e.g. :1.123) to reach us, which works inside
+        # the Flatpak sandbox without any --own-name finish-arg.
+        try:
+            conn = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+        except Exception as exc:
+            log.error("Tray SNI: could not connect to session bus: %s", exc)
+            return
+        self._sni_bus_acquired(conn, conn.get_unique_name(), iface, menu_iface)
 
     def _sni_bus_acquired(self, conn: Gio.DBusConnection, name: str, iface, menu_iface) -> None:
         self._conn = conn
@@ -436,7 +452,7 @@ class TrayIcon:
                 "/StatusNotifierWatcher",
                 "org.kde.StatusNotifierWatcher",
                 "RegisterStatusNotifierItem",
-                GLib.Variant("(s)", (_SNI_BUS_NAME,)),
+                GLib.Variant("(s)", (_SNI_OBJECT_PATH,)),  # pass object path; watcher uses unique name
                 None,
                 Gio.DBusCallFlags.NONE,
                 -1,
