@@ -324,7 +324,6 @@ class TrayIcon:
     # ------------------------------------------------------------------ #
 
     def _start_xsi(self) -> None:
-        # org.x.StatusIcon requires owning a well-known bus name, which is
         # blocked by the Flatpak sandbox (Flathub disallows org.x.StatusIcon.*
         # own-names).  Fall back to SNI if the SNI watcher is also present,
         # otherwise the tray is unavailable in this environment.
@@ -534,11 +533,10 @@ class TrayIcon:
                 for item_id, props in self._dbusmenu_items()
             ]
             root_props: dict = {}
-            layout = GLib.Variant(
-                "(ia{sv}av)", (_MENU_ID_ROOT, root_props, children)
-            )
-            invocation.return_value(GLib.Variant("(u(ia{sv}av))",
-                                                  (self._menu_revision, layout)))
+            invocation.return_value(GLib.Variant(
+                "(u(ia{sv}av))",
+                (self._menu_revision, (_MENU_ID_ROOT, root_props, children)),
+            ))
 
         elif method == "GetGroupProperties":
             ids, prop_names = params
