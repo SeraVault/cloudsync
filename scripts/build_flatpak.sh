@@ -58,9 +58,10 @@ if [[ ! -d "${PIP_DEPS_DIR}" ]] || [[ -z "$(ls -A "${PIP_DEPS_DIR}")" ]]; then
         --dest "${PIP_DEPS_DIR}" \
         --python-version "3.13" \
         --only-binary=:all: \
+        --platform manylinux2014_x86_64 \
+        --platform manylinux_2_17_x86_64 \
         --platform linux_x86_64 \
         --implementation cp \
-        --abi cp313 \
         setuptools \
         google-auth \
         google-auth-oauthlib \
