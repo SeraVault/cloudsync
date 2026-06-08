@@ -2,12 +2,17 @@
 
 A two-way cloud sync app for the Linux desktop with a native GNOME interface. Sync your local folders to the cloud automatically — in the background, with per-folder control over timing and conflict handling.
 
-**CloudSync is a subscription product distributed as a Flatpak.** New installs include a **14-day free trial** — no license key required to get started. After the trial:
+CloudSync is free to use with one cloud provider and one sync folder. **CloudSync Pro** ($9.99/year) removes all limits.
 
-- **Free tier**: 1 sync folder, unlimited sync cycles, no time limit
-- **Subscription** (buy at [seravault.com/cloudsync](https://seravault.com/cloudsync)): unlimited folders + ongoing updates
+| | Free | Pro |
+|---|---|---|
+| Cloud providers | 1 | Unlimited |
+| Sync folders | 1 | Unlimited |
+| Two-way sync | ✓ | ✓ |
+| Desktop notifications | ✓ | ✓ |
+| Automatic updates | — | ✓ |
 
-A subscription is required to receive app updates via Flatpak. The app continues to function after a subscription lapses — you won't receive new versions until it's renewed.
+Subscribe at [cloudsync.seravault.com](https://cloudsync.seravault.com). The app continues to function after a subscription lapses — you just won't receive new versions until it's renewed.
 
 ---
 
@@ -62,26 +67,18 @@ After connecting, use the **Browse** button in the folder picker to navigate buc
 
 ## Installation
 
-CloudSync is distributed as a Flatpak via the SeraVault repository.
-
-### Try it free (14-day trial)
-
-No license key required for the first 14 days:
+CloudSync is distributed as a Flatpak via Flathub. See [cloudsync.seravault.com/#install](https://cloudsync.seravault.com/#install) for full instructions.
 
 ```bash
-flatpak remote-add --user seravault https://flatpak.seravault.com
-flatpak install seravault com.seravault.cloudsync
+flatpak install flathub com.seravault.cloudsync
 ```
 
-Launch the app, complete the setup wizard, and start syncing immediately. The Subscription page (hamburger menu → Preferences → Subscription) shows how many trial days remain.
+### Upgrade to CloudSync Pro
 
-### Subscribe for unlimited folders + updates
-
-1. Purchase at [seravault.com/cloudsync](https://seravault.com/cloudsync) — you receive a license key by email.
-2. Open **Preferences → Subscription**, paste your key, and click **Activate**.
-3. Stay subscribed to receive app updates via `flatpak update`.
-
-After a subscription lapses the app continues to run with 1 sync folder — you won't receive new versions until it's renewed.
+1. Visit [cloudsync.seravault.com](https://cloudsync.seravault.com) and click **Subscribe**.
+2. Complete checkout — use the email address you want linked to your subscription.
+3. Open **Preferences → Subscription**, enter that email, and click **Sign In**.
+4. CloudSync verifies your subscription and unlocks all features immediately.
 
 ### Install from Flatpak bundle (offline)
 
@@ -94,10 +91,9 @@ flatpak install --user com.seravault.cloudsync.flatpak
 ## First run
 
 1. Launch **CloudSync** from your application menu (or run `cloudsync` in a terminal).
-2. The setup wizard opens — your 14-day trial begins automatically on first launch.
-3. Choose a provider (Google Drive, Dropbox, Amazon S3, Backblaze B2, or Cloudflare R2), sign in, and pick a local folder to sync.
-4. Sync starts automatically after setup. Add more providers or folders any time from the main window.
-5. _(Optional)_ Open **Preferences → Subscription** to enter a license key and unlock unlimited folders.
+2. The setup wizard opens — choose a provider, sign in, and pick a local folder to sync.
+3. Sync starts automatically after setup. Add more providers or folders any time from the main window.
+4. _(Optional)_ Open **Preferences → Subscription** and sign in with your email to activate CloudSync Pro.
 
 ---
 
@@ -243,7 +239,7 @@ src/cloudsync/
 │   ├── autostart.py    # XDG autostart
 │   ├── activity_log.py # Persistent sync event log (capped at 500 entries)
 │   ├── config.py       # Config + SyncFolder dataclasses, atomic JSON persistence
-│   └── license.py      # LemonSqueezy license + 14-day trial tracking
+│   └── license.py      # Stripe subscription validation + free tier enforcement
 ├── sync/
 │   ├── base.py         # CloudStorageClient abstract base
 │   ├── engine.py       # Two-way sync engine, watcher thread, conflict resolution
@@ -269,7 +265,7 @@ To add a new provider: implement `CloudStorageClient` (see `sync/base.py`), add 
 ## Building from source
 
 ```bash
-git clone https://github.com/yourname/cloudsync.git
+git clone https://github.com/SeraVault/cloudsync.git
 cd cloudsync
 bash install.sh
 ```
