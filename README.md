@@ -75,7 +75,7 @@ flatpak install flathub com.seravault.cloudsync
 
 ### Upgrade to CloudSync Pro
 
-1. Visit [cloudsync.seravault.com](https://cloudsync.seravault.com) and click **Subscribe**.
+1. Subscribe via [cloudsync.seravault.com](https://cloudsync.seravault.com) or open **Preferences → Subscription** in the app and click **Subscribe**.
 2. Complete checkout — use the email address you want linked to your subscription.
 3. Open **Preferences → Subscription**, enter that email, and click **Sign In**.
 4. CloudSync verifies your subscription and unlocks all features immediately.
