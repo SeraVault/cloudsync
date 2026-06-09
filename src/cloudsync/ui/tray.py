@@ -265,6 +265,7 @@ class TrayIcon:
         self._tooltip: str = "CloudSync — Google Drive sync"
         self._protocol: str = ""  # "xsi" | "sni" | ""
         self._menu_revision: int = 1
+        self._watcher_watch_ids: list[int] = []
         # Keep node info objects alive (GC'd immediately if not stored)
         self._node_info: object = None
 
@@ -296,7 +297,38 @@ class TrayIcon:
                       self._active_watcher)
             self._start_sni()
         else:
-            log.info("Tray: no supported tray host found (GNOME without extension?)")
+            log.info("Tray: no SNI watcher yet — watching for late-starting watcher (GNOME/Zorin)")
+            self._watch_for_sni_watcher()
+
+    def _watch_for_sni_watcher(self) -> None:
+        """Watch for the SNI watcher appearing on the bus after app startup.
+
+        On GNOME/Zorin the AppIndicator extension registers its watcher
+        asynchronously — it may not be on the bus when start() is called.
+        """
+        for watcher_name in (_SNI_WATCHER, _SNI_WATCHER_X):
+            watch_id = Gio.bus_watch_name(
+                Gio.BusType.SESSION,
+                watcher_name,
+                Gio.BusNameWatcherFlags.NONE,
+                lambda *_, wn=watcher_name: self._on_watcher_appeared(wn),
+                None,
+            )
+            self._watcher_watch_ids.append(watch_id)
+
+    def _on_watcher_appeared(self, watcher_name: str) -> None:
+        if self._protocol:
+            return  # already registered via another path
+        log.debug("Tray: SNI watcher appeared (%s) — registering now", watcher_name)
+        self._protocol = "sni"
+        self._active_watcher = watcher_name
+        self._cancel_watcher_watches()
+        self._start_sni()
+
+    def _cancel_watcher_watches(self) -> None:
+        for watch_id in self._watcher_watch_ids:
+            Gio.bus_unwatch_name(watch_id)
+        self._watcher_watch_ids.clear()
 
     def stop(self) -> None:
         if self._conn and self._reg_id:
@@ -308,6 +340,7 @@ class TrayIcon:
         if self._name_id:
             Gio.bus_unown_name(self._name_id)
             self._name_id = 0
+        self._cancel_watcher_watches()
         self._reg_id = 0
         self._objmgr_reg_id = 0
         self._dbusmenu_reg_id = 0
@@ -330,23 +363,6 @@ class TrayIcon:
     # ------------------------------------------------------------------ #
 
     def _start_xsi(self) -> None:
-        # blocked by the Flatpak sandbox (Flathub disallows org.x.StatusIcon.*
-        # own-names).  Fall back to SNI if the SNI watcher is also present,
-        # otherwise the tray is unavailable in this environment.
-        if os.environ.get("FLATPAK_ID"):
-            log.info("Tray XSI: skipped in Flatpak sandbox — org.x.StatusIcon "
-                     "bus name ownership not permitted; falling back to SNI")
-            conn = Gio.bus_get_sync(Gio.BusType.SESSION, None)
-            if _has_bus_prefix(conn, _SNI_WATCHER) or _has_bus_prefix(conn, _SNI_WATCHER_X):
-                self._protocol = "sni"
-                self._active_watcher = (
-                    _SNI_WATCHER if _has_bus_prefix(conn, _SNI_WATCHER)
-                    else _SNI_WATCHER_X
-                )
-                self._start_sni()
-            else:
-                log.info("Tray: no SNI watcher found either; tray unavailable")
-            return
         self._node_info = Gio.DBusNodeInfo.new_for_xml(_XSI_IFACE_XML)
         self._objmgr_node_info = Gio.DBusNodeInfo.new_for_xml(_OBJMGR_IFACE_XML)
         iface = self._node_info.interfaces[0]

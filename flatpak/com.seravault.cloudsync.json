@@ -22,7 +22,8 @@
         "--talk-name=org.kde.StatusNotifierItem",
         "--talk-name=com.canonical.AppMenu.Registrar",
         "--talk-name=org.x.StatusNotifierWatcher",
-        "--talk-name=org.x.StatusIconMonitor.*"
+        "--talk-name=org.x.StatusIconMonitor.*",
+        "--own-name=org.x.StatusIcon.*"
     ],
     "modules": [
         {
