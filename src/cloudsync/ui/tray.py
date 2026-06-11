@@ -9,8 +9,11 @@ Two protocols are supported and auto-detected at runtime:
   StatusNotifier plugin), MATE, LXQt, and Wayland compositors that support
   the freedesktop / KDE appindicator protocol.
 
-GNOME (without the AppIndicator extension) has no system tray; the class
-is a silent no-op there.
+For SNI the watcher name is watched persistently: the item re-registers
+whenever a watcher (re)appears — covering plasmashell restarts and the
+GNOME AppIndicator extension being enabled mid-session.  GNOME without
+the extension has no system tray; the class stays dormant there and the
+``on_active_changed`` hook reports the (in)active state to the app.
 """
 from __future__ import annotations
 
@@ -93,7 +96,6 @@ _XSI_IFACE_XML = """
 
 # ── StatusNotifierItem (KDE / XFCE / MATE / Wayland) ─────────────────────── #
 
-_SNI_BUS_NAME    = "org.kde.StatusNotifierItem-cloudsync"
 _SNI_OBJECT_PATH = "/StatusNotifierItem"
 _SNI_WATCHER     = "org.kde.StatusNotifierWatcher"
 _SNI_WATCHER_X   = "org.x.StatusNotifierWatcher"  # XFCE / LXQt fallback
@@ -136,6 +138,7 @@ _SNI_IFACE_XML = """
     <property name="AttentionMovieName" type="s"        access="read"/>
     <property name="ToolTip"            type="(sa(iiay)ss)" access="read"/>
     <property name="ItemIsMenu"         type="b"        access="read"/>
+    <property name="IconThemePath"      type="s"        access="read"/>
     <property name="Menu"               type="o"        access="read"/>
   </interface>
 </node>
@@ -213,6 +216,26 @@ _MENU_ID_SEP       = 3
 _MENU_ID_QUIT      = 4
 
 
+def _flatpak_install_base() -> str:
+    """Return the host-side flatpak installation base (user or system).
+
+    /.flatpak-info records the app-path of the running instance, which tells
+    us whether the app was installed per-user or system-wide — the exports
+    (icons visible to the host panel) live under the matching base.
+    """
+    user_base = os.path.expanduser("~/.local/share/flatpak")
+    try:
+        import configparser
+        info = configparser.ConfigParser(interpolation=None)
+        info.read("/.flatpak-info")
+        app_path = info.get("Instance", "app-path", fallback="")
+        if app_path and not app_path.startswith(user_base):
+            return "/var/lib/flatpak"
+    except Exception:
+        pass
+    return user_base
+
+
 def _icon_name() -> str:
     """Return an icon path/name usable by the HOST desktop environment.
 
@@ -221,11 +244,17 @@ def _icon_name() -> str:
     Outside a flatpak, return the app-id theme name.
     """
     if os.path.exists("/.flatpak-info"):
-        return os.path.expanduser(
-            "~/.local/share/flatpak/exports/share/icons/hicolor/scalable/apps"
-            "/com.seravault.cloudsync.svg"
-        )
+        return (_flatpak_install_base()
+                + "/exports/share/icons/hicolor/scalable/apps"
+                  "/com.seravault.cloudsync.svg")
     return "com.seravault.cloudsync"
+
+
+def _icon_theme_path() -> str:
+    """Extra icon-theme search path for SNI hosts (KDE honours IconThemePath)."""
+    if os.path.exists("/.flatpak-info"):
+        return _flatpak_install_base() + "/exports/share/icons"
+    return ""
 
 
 def _has_bus_prefix(conn: Gio.DBusConnection, prefix: str) -> bool:
@@ -261,11 +290,17 @@ class TrayIcon:
         self._reg_id: int = 0
         self._objmgr_reg_id: int = 0
         self._dbusmenu_reg_id: int = 0
-        self._active_watcher: str = _SNI_WATCHER  # may be overridden to _SNI_WATCHER_X
+        self._active_watcher: str = ""  # watcher we are (or were) registered with
         self._tooltip: str = "CloudSync — Google Drive sync"
         self._protocol: str = ""  # "xsi" | "sni" | ""
         self._menu_revision: int = 1
+        self._layout_sig: tuple = ()  # menu labels at last GetLayout
         self._watcher_watch_ids: list[int] = []
+        self._sni_active: bool = False    # watcher accepted our registration
+        self._sni_pending: bool = False   # RegisterStatusNotifierItem in flight
+        # Called with is_active() whenever the tray gains/loses a host
+        # (watcher appears late, plasmashell restarts, …).
+        self.on_active_changed: object = None
         # Keep node info objects alive (GC'd immediately if not stored)
         self._node_info: object = None
 
@@ -280,50 +315,76 @@ class TrayIcon:
             log.warning("Tray: cannot connect to session bus: %s", exc)
             return
 
-        has_xsi = _has_bus_prefix(conn, "org.x.StatusIconMonitor.")
-        has_sni = _has_bus_prefix(conn, _SNI_WATCHER)
-        has_sni_x = not has_sni and _has_bus_prefix(conn, _SNI_WATCHER_X)
-        log.debug("Tray: bus scan — xsi_monitor=%s sni_watcher=%s sni_watcher_x=%s",
-                  has_xsi, has_sni, has_sni_x)
-
-        if has_xsi:
+        if _has_bus_prefix(conn, "org.x.StatusIconMonitor."):
             self._protocol = "xsi"
             log.debug("Tray: Cinnamon detected — using org.x.StatusIcon")
             self._start_xsi()
-        elif has_sni or has_sni_x:
-            self._protocol = "sni"
-            self._active_watcher = _SNI_WATCHER if has_sni else _SNI_WATCHER_X
-            log.debug("Tray: SNI watcher detected (%s) — using StatusNotifierItem",
-                      self._active_watcher)
-            self._start_sni()
-        else:
-            log.info("Tray: no SNI watcher yet — watching for late-starting watcher (GNOME/Zorin)")
-            self._watch_for_sni_watcher()
+            return
 
-    def _watch_for_sni_watcher(self) -> None:
-        """Watch for the SNI watcher appearing on the bus after app startup.
-
-        On GNOME/Zorin the AppIndicator extension registers its watcher
-        asynchronously — it may not be on the bus when start() is called.
-        """
+        # SNI everywhere else.  Register the item/menu objects once, then keep
+        # a persistent watch on both watcher names: name_appeared fires
+        # immediately if a watcher is already running, and again every time a
+        # host (re)starts — plasmashell crash/restart, the GNOME AppIndicator
+        # extension being enabled mid-session — at which point the item must
+        # be re-registered or the icon stays gone.
+        self._protocol = "sni"
+        self._register_sni_objects(conn)
         for watcher_name in (_SNI_WATCHER, _SNI_WATCHER_X):
-            watch_id = Gio.bus_watch_name(
+            self._watcher_watch_ids.append(Gio.bus_watch_name(
                 Gio.BusType.SESSION,
                 watcher_name,
                 Gio.BusNameWatcherFlags.NONE,
-                lambda *_, wn=watcher_name: self._on_watcher_appeared(wn),
-                None,
-            )
-            self._watcher_watch_ids.append(watch_id)
+                lambda _c, wn, _owner: self._on_watcher_appeared(wn),
+                lambda _c, wn: self._on_watcher_vanished(wn),
+            ))
+
+        if not (_has_bus_prefix(conn, _SNI_WATCHER)
+                or _has_bus_prefix(conn, _SNI_WATCHER_X)):
+            desktop = os.environ.get("XDG_CURRENT_DESKTOP", "")
+            if "GNOME" in desktop.upper():
+                log.info(
+                    "Tray: no StatusNotifier watcher on the bus — GNOME needs the "
+                    "'AppIndicator and KStatusNotifierItem Support' extension "
+                    "(https://extensions.gnome.org/extension/615/). The icon will "
+                    "appear automatically if it is enabled."
+                )
+            else:
+                log.info("Tray: no StatusNotifier watcher on the bus yet — "
+                         "the icon will appear if one starts (%s)", desktop)
 
     def _on_watcher_appeared(self, watcher_name: str) -> None:
-        if self._protocol:
-            return  # already registered via another path
-        log.debug("Tray: SNI watcher appeared (%s) — registering now", watcher_name)
-        self._protocol = "sni"
+        if not self._reg_id:
+            return  # SNI object registration failed; nothing to offer a host
+        if self._sni_active or self._sni_pending:
+            return  # already hosted (or registering) via the other watcher
+        log.debug("Tray SNI: watcher appeared (%s) — registering item", watcher_name)
         self._active_watcher = watcher_name
-        self._cancel_watcher_watches()
-        self._start_sni()
+        self._register_with_watcher()
+
+    def _on_watcher_vanished(self, watcher_name: str) -> None:
+        # Fires once at watch setup when the name has no owner, and later if
+        # the host dies.  Only react if this was the watcher hosting us.
+        if watcher_name != self._active_watcher:
+            return
+        if self._sni_active or self._sni_pending:
+            log.debug("Tray SNI: watcher vanished (%s) — waiting for a watcher "
+                      "to return", watcher_name)
+        self._sni_pending = False
+        self._set_sni_active(False)
+
+    def _set_sni_active(self, active: bool) -> None:
+        if active == self._sni_active:
+            return
+        self._sni_active = active
+        self._notify_active_changed()
+
+    def _notify_active_changed(self) -> None:
+        cb = self.on_active_changed
+        if callable(cb):
+            try:
+                cb(self.is_active())
+            except Exception:
+                log.exception("Tray: on_active_changed callback failed")
 
     def _cancel_watcher_watches(self) -> None:
         for watch_id in self._watcher_watch_ids:
@@ -345,8 +406,16 @@ class TrayIcon:
         self._objmgr_reg_id = 0
         self._dbusmenu_reg_id = 0
         self._name_id = 0
+        self._protocol = ""
+        self._sni_active = False
+        self._sni_pending = False
+        self._active_watcher = ""
 
     def is_active(self) -> bool:
+        if self._protocol == "sni":
+            # Only count as active once a watcher has accepted the item —
+            # having the objects on the bus shows nothing on screen.
+            return self._sni_active
         return self._reg_id > 0
 
     def set_status(self, syncing: bool) -> None:
@@ -390,6 +459,7 @@ class TrayIcon:
                 self._xsi_method, self._xsi_get_prop, lambda *_: False,
             )
             log.debug("Tray XSI registered at %s (reg_id=%d)", _XSI_OBJECT_PATH, self._reg_id)
+            self._notify_active_changed()
         except Exception as exc:
             log.error("Tray XSI: register_object failed: %s", exc)
 
@@ -440,42 +510,38 @@ class TrayIcon:
     # SNI (KDE / XFCE / MATE / Wayland)                                   #
     # ------------------------------------------------------------------ #
 
-    def _start_sni(self) -> None:
+    def _register_sni_objects(self, conn: Gio.DBusConnection) -> None:
+        """Export the SNI item and DBusMenu objects on the session bus.
+
+        Done once, independently of any watcher: the objects sit on the bus
+        and watchers are pointed at them via RegisterStatusNotifierItem as
+        they (re)appear.
+        """
+        self._conn = conn
         self._node_info = Gio.DBusNodeInfo.new_for_xml(_SNI_IFACE_XML)
         self._dbusmenu_node_info = Gio.DBusNodeInfo.new_for_xml(_DBUSMENU_IFACE_XML)
-        iface = self._node_info.interfaces[0]
-        menu_iface = self._dbusmenu_node_info.interfaces[0]
-        # Connect to the session bus directly — no well-known name ownership
-        # needed.  We pass the app's own well-known name (com.seravault.cloudsync)
-        # to RegisterStatusNotifierItem; Flatpak automatically allows the proxy
-        # to forward calls addressed to the app's own ID, so the watcher can
-        # reach /StatusNotifierItem on the app's existing bus connection.
-        try:
-            conn = Gio.bus_get_sync(Gio.BusType.SESSION, None)
-        except Exception as exc:
-            log.error("Tray SNI: could not connect to session bus: %s", exc)
-            return
-        self._sni_bus_acquired(conn, conn.get_unique_name(), iface, menu_iface)
-
-    def _sni_bus_acquired(self, conn: Gio.DBusConnection, name: str, iface, menu_iface) -> None:
-        self._conn = conn
         try:
             self._reg_id = conn.register_object(
-                _SNI_OBJECT_PATH, iface,
+                _SNI_OBJECT_PATH, self._node_info.interfaces[0],
                 self._sni_method, self._sni_get_prop, lambda *_: False,
             )
             self._dbusmenu_reg_id = conn.register_object(
-                _DBUSMENU_PATH, menu_iface,
+                _DBUSMENU_PATH, self._dbusmenu_node_info.interfaces[0],
                 self._dbusmenu_method, self._dbusmenu_get_prop, lambda *_: False,
             )
             log.debug("Tray SNI registered at %s (reg_id=%d), DBusMenu at %s",
                       _SNI_OBJECT_PATH, self._reg_id, _DBUSMENU_PATH)
         except Exception as exc:
             log.error("Tray SNI: register_object failed: %s", exc)
-            return
-        # Register with the watcher
+
+    def _register_with_watcher(self) -> None:
+        # We pass the app's own well-known name (com.seravault.cloudsync)
+        # to RegisterStatusNotifierItem; Flatpak automatically allows the proxy
+        # to forward calls addressed to the app's own ID, so the watcher can
+        # reach /StatusNotifierItem on the app's existing bus connection.
+        self._sni_pending = True
         try:
-            conn.call(
+            self._conn.call(
                 self._active_watcher,
                 "/StatusNotifierWatcher",
                 "org.kde.StatusNotifierWatcher",
@@ -489,12 +555,15 @@ class TrayIcon:
                 None,
             )
         except Exception as exc:
+            self._sni_pending = False
             log.warning("Tray SNI: could not call RegisterStatusNotifierItem: %s", exc)
 
     def _sni_registered(self, conn, result, user_data) -> None:
+        self._sni_pending = False
         try:
             conn.call_finish(result)
-            log.debug("Tray SNI: registered with watcher")
+            log.debug("Tray SNI: registered with watcher %s", self._active_watcher)
+            self._set_sni_active(True)
         except Exception as exc:
             log.warning("Tray SNI: watcher registration failed: %s", exc)
 
@@ -521,6 +590,7 @@ class TrayIcon:
             "AttentionMovieName": GLib.Variant("s", ""),
             "ToolTip":            GLib.Variant("(sa(iiay)ss)", ("", [], "CloudSync", self._tooltip)),
             "ItemIsMenu":         GLib.Variant("b", False),
+            "IconThemePath":      GLib.Variant("s", _icon_theme_path()),
             "Menu":               GLib.Variant("o", _DBUSMENU_PATH),
         }.get(prop)
 
@@ -551,24 +621,46 @@ class TrayIcon:
                              "visible": GLib.Variant("b", True)}),
         ]
 
+    @staticmethod
+    def _layout_signature(items: list[tuple[int, dict]]) -> tuple:
+        """Hashable snapshot of the menu used to detect stale host caches."""
+        return tuple(str(props.get("label", "")) for _id, props in items)
+
+    # Hosts (KDE in particular) need children-display on the root node to
+    # treat it as a menu container.
+    _ROOT_PROPS_TMPL = {"children-display": "submenu"}
+
+    def _root_props(self) -> dict:
+        return {k: GLib.Variant("s", v) for k, v in self._ROOT_PROPS_TMPL.items()}
+
     def _dbusmenu_method(self, conn, sender, path, iface, method, params, invocation) -> None:
         if method == "GetLayout":
             parent_id, _depth, _prop_names = params
-            children = [
-                GLib.Variant("v", GLib.Variant("(ia{sv}av)", (item_id, props, [])))
-                for item_id, props in self._dbusmenu_items()
-            ]
-            root_props: dict = {}
+            items = self._dbusmenu_items()
+            self._layout_sig = self._layout_signature(items)
+            if parent_id == _MENU_ID_ROOT:
+                # NOTE: do not wrap in GLib.Variant("v", …) — PyGObject boxes
+                # each "av" element into a variant itself, and an explicit
+                # wrapper produces v(v(tuple)) on the wire, which GJS-based
+                # hosts (GNOME appindicator extension) fail to unpack.
+                children = [
+                    GLib.Variant("(ia{sv}av)", (item_id, props, []))
+                    for item_id, props in items
+                ]
+                node = (_MENU_ID_ROOT, self._root_props(), children)
+            else:
+                # Flat menu: any non-root id is a leaf with no children.
+                node = (parent_id, dict(items).get(parent_id, {}), [])
             invocation.return_value(GLib.Variant(
                 "(u(ia{sv}av))",
-                (self._menu_revision, (_MENU_ID_ROOT, root_props, children)),
+                (self._menu_revision, node),
             ))
 
         elif method == "GetGroupProperties":
             ids, prop_names = params
             result = []
             all_items = {i: p for i, p in self._dbusmenu_items()}
-            all_items[_MENU_ID_ROOT] = {}
+            all_items[_MENU_ID_ROOT] = self._root_props()
             for item_id in ids:
                 props = all_items.get(item_id, {})
                 if prop_names:
@@ -584,7 +676,16 @@ class TrayIcon:
             invocation.return_value(GLib.Variant("(v)", (value,)))
 
         elif method == "AboutToShow":
-            invocation.return_value(GLib.Variant("(b)", (False,)))
+            # The "Open/Hide CloudSync" label depends on current window state;
+            # hosts cache the layout, so tell them to refetch when it changed.
+            changed = self._layout_signature(self._dbusmenu_items()) != self._layout_sig
+            if changed:
+                self._menu_revision += 1
+                self._emit_signal(
+                    _DBUSMENU_PATH, "com.canonical.dbusmenu", "LayoutUpdated",
+                    GLib.Variant("(ui)", (self._menu_revision, _MENU_ID_ROOT)),
+                )
+            invocation.return_value(GLib.Variant("(b)", (changed,)))
 
         elif method == "AboutToShowGroup":
             ids, = params

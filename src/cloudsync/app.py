@@ -89,7 +89,13 @@ class CloudSyncApp(Adw.Application):
 
         if self._tray is None:
             self._tray = TrayIcon(self)
+            # Tray activation is asynchronous (XSI registers via a bus
+            # callback; on GNOME the SNI watcher may appear minutes later
+            # when the AppIndicator extension loads) — track it.
+            self._tray.on_active_changed = self._on_tray_active_changed
             self._tray.start()
+
+        self._window.set_hide_on_close(self._tray.is_active())
 
         if not self._background:
             self._window.present()
@@ -108,6 +114,10 @@ class CloudSyncApp(Adw.Application):
         )
         self._bg_threads.append(t)
         t.start()
+
+    def _on_tray_active_changed(self, active: bool) -> None:
+        if self._window:
+            self._window.set_hide_on_close(active)
 
     def _on_window_close(self, window) -> bool:
         if self._tray and self._tray.is_active():
