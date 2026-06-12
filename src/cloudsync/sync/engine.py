@@ -194,7 +194,7 @@ class SyncEngine:
                 try:
                     self._run_folders(folders_due)
                 except Exception as exc:
-                    log.error("Timer sync error: %s", exc)
+                    log.exception("Timer sync error: %s", exc)
 
             self._stop_event.wait(TICK)
 
@@ -221,7 +221,7 @@ class SyncEngine:
             except queue.Empty:
                 pass
             except Exception as exc:
-                log.error("Watcher queue read error: %s", exc)
+                log.exception("Watcher queue read error: %s", exc)
 
             while True:
                 try:
@@ -230,7 +230,7 @@ class SyncEngine:
                 except queue.Empty:
                     break
                 except Exception as exc:
-                    log.error("Watcher queue drain error: %s", exc)
+                    log.exception("Watcher queue drain error: %s", exc)
                     break
 
             if not pending:
@@ -260,7 +260,7 @@ class SyncEngine:
                         self._status("Syncing…")
                         self._handle_local_change(event_type, path, folder, result)
                     except Exception as exc:
-                        log.error("Watcher upload error %s: %s", path, exc)
+                        log.exception("Watcher upload error %s: %s", path, exc)
                         result.errors.append(str(exc))
 
                 if result.errors:

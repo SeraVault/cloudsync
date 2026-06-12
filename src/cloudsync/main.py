@@ -5,6 +5,7 @@ import sys
 def main() -> int:
     _configure_logging()
     args = _bootstrap_runtime(sys.argv[1:])
+    _add_file_logging()
 
     if args.headless or args.sync_folder:
         return _headless_sync(sys.argv[1:])
@@ -19,6 +20,7 @@ def headless_main() -> int:
     """Dedicated headless entry point for cron, systemd, and server use."""
     _configure_logging()
     _bootstrap_runtime(sys.argv[1:])
+    _add_file_logging()
     return _headless_sync(sys.argv[1:])
 
 
@@ -28,6 +30,29 @@ def _configure_logging() -> None:
         format="%(levelname)s %(name)s: %(message)s",
         stream=sys.stderr,
     )
+
+
+def _add_file_logging() -> None:
+    """Attach a rotating file handler after DATA_DIR is finalised."""
+    import logging.handlers
+    from .core.config import DATA_DIR
+
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    log_path = DATA_DIR / "cloudsync.log"
+    handler = logging.handlers.RotatingFileHandler(
+        log_path,
+        maxBytes=2 * 1024 * 1024,  # 2 MB per file
+        backupCount=3,
+        encoding="utf-8",
+    )
+    handler.setLevel(logging.DEBUG)
+    handler.setFormatter(
+        logging.Formatter(
+            "%(asctime)s %(levelname)s %(name)s: %(message)s",
+            datefmt="%Y-%m-%dT%H:%M:%S",
+        )
+    )
+    logging.getLogger().addHandler(handler)
 
 
 def _bootstrap_runtime(argv: list[str]):

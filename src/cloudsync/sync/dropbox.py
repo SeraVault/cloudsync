@@ -161,9 +161,14 @@ class DropboxClient(CloudStorageClient):
     def download_file(self, file_id: str, dest_path: Path) -> None:
         dest_path.parent.mkdir(parents=True, exist_ok=True)
         _, response = self._dbx().files_download(file_id)
-        with open(dest_path, "wb") as fh:
-            for chunk in response.iter_content(chunk_size=65536):
-                fh.write(chunk)
+        if response is None:
+            raise RuntimeError(f"Dropbox download returned no response for {file_id}")
+        try:
+            with open(dest_path, "wb") as fh:
+                for chunk in response.iter_content(chunk_size=65536):
+                    fh.write(chunk)
+        finally:
+            response.close()
 
     def trash_file(self, file_id: str) -> None:
         self._dbx().files_delete_v2(file_id)
