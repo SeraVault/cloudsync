@@ -336,4 +336,6 @@ Commit the updated `flatpak/python3-pip-deps.json` before submitting a Flathub P
 
 ## License
 
-GPL-3.0-or-later
+[PolyForm Noncommercial 1.0.0](LICENSE.md) — free for personal and other
+noncommercial use; commercial use is not permitted. Contact
+cloudsync@seravault.com for commercial licensing.

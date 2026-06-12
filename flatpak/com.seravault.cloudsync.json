@@ -17,36 +17,12 @@
         "--filesystem=xdg-videos",
         "--filesystem=xdg-desktop",
         "--talk-name=org.freedesktop.Notifications",
-        "--talk-name=org.a11y.Bus",
         "--talk-name=org.kde.StatusNotifierWatcher",
-        "--own-name=org.kde.StatusNotifierItem-cloudsync",
-        "--talk-name=com.canonical.AppMenu.Registrar",
         "--talk-name=org.x.StatusNotifierWatcher",
         "--talk-name=org.x.StatusIconMonitor.*",
-        "--own-name=org.x.StatusIcon.*"
+        "--own-name=org.x.StatusIcon.cloudsync"
     ],
     "modules": [
-        {
-            "name": "libxapp",
-            "buildsystem": "meson",
-            "config-opts": [
-                "-Ddocs=false",
-                "-Dapp-lib-only=true",
-                "-Dintrospection=true",
-                "-Dvapi=false",
-                "-Dpy-overrides-dir=/app/lib/python3.13/site-packages/gi/overrides"
-            ],
-            "post-install": [
-                "ln -sf libxapp.so.1 /app/lib/libxapp.so"
-            ],
-            "sources": [
-                {
-                    "type": "archive",
-                    "url": "https://github.com/linuxmint/xapp/archive/refs/tags/master.mint22.tar.gz",
-                    "sha256": "cf2952ba926469ffd8804dd2e4c3068f8ae7dc765b034dba7457f16b6f61e42c"
-                }
-            ]
-        },
         "python3-pip-deps.json",
         {
             "name": "cloudsync",
@@ -59,7 +35,6 @@
                 "install -Dm644 data/com.seravault.cloudsync-gdoc-mimetypes.xml /app/share/mime/packages/com.seravault.cloudsync-gdoc-mimetypes.xml",
                 "install -Dm644 data/icons/com.seravault.cloudsync.svg /app/share/icons/hicolor/scalable/apps/com.seravault.cloudsync.svg",
                 "install -Dm644 flatpak/com.seravault.cloudsync.metainfo.xml /app/share/metainfo/com.seravault.cloudsync.metainfo.xml",
-                "python3 scripts/build_help.py",
                 "install -Dm644 data/help.html /app/share/doc/com.seravault.cloudsync/help.html",
                 "install -Dm644 data/docs/user-guide.md /app/share/doc/com.seravault.cloudsync/user-guide.md"
             ],
@@ -69,8 +44,9 @@
             ],
             "sources": [
                 {
-                    "type": "dir",
-                    "path": ".."
+                    "type": "git",
+                    "url": "https://github.com/SeraVault/cloudsync.git",
+                    "tag": "v1.0.2"
                 }
             ]
         }

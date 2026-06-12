@@ -20,8 +20,9 @@ repo/
 *.flatpakref
 flatpak/pip-deps/
 
-# Sensitive credentials
-src/cloudsync/core/client_secret.json
+# NOTE: src/cloudsync/core/client_secret.json is intentionally committed.
+# It is a Google "Desktop app" OAuth client — Google treats installed-app
+# client secrets as non-confidential; user tokens never leave the machine.
 
 # IDE
 .vscode/

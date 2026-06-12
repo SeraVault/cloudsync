@@ -3,7 +3,9 @@
   <id>com.seravault.cloudsync</id>
   <name>CloudSync</name>
   <summary>Two-way cloud sync for Linux — Google Drive, Dropbox, S3, and more</summary>
-  <developer_name>SeraVault</developer_name>
+  <developer id="com.seravault">
+    <name>SeraVault</name>
+  </developer>
 
   <description>
     <p>
@@ -29,12 +31,10 @@
   </description>
 
   <metadata_license>MIT</metadata_license>
-  <project_license>GPL-3.0-or-later</project_license>
+  <project_license>PolyForm-Noncommercial-1.0.0</project_license>
 
   <url type="homepage">https://cloudsync.seravault.com</url>
-  <url type="bugtracker">https://cloudsync.seravault.com</url>
-  <url type="contact">mailto:cloudsync@seravault.com</url>
-  <url type="payment">https://buy.stripe.com/7sY8wPbq04hUfhh20Mf3a00</url>
+  <url type="bugtracker">https://github.com/SeraVault/cloudsync/issues</url>
 
   <launchable type="desktop-id">com.seravault.cloudsync.desktop</launchable>
 
@@ -50,6 +50,23 @@
   </screenshots>
 
   <releases>
+    <release version="1.0.2" date="2026-06-11">
+      <description>
+        <p>System tray reliability and licensing update.</p>
+        <ul>
+          <li>Fixed the tray menu not appearing on GNOME-based desktops</li>
+          <li>Tray icon now re-registers automatically when the panel or its host restarts</li>
+          <li>Improved KDE Plasma tray menu compatibility</li>
+          <li>Correct tray icon for system-wide Flatpak installations</li>
+          <li>License changed to PolyForm Noncommercial 1.0.0</li>
+        </ul>
+      </description>
+    </release>
+    <release version="1.0.1" date="2026-06-08">
+      <description>
+        <p>System tray fixes for the Flatpak sandbox.</p>
+      </description>
+    </release>
     <release version="1.0.0" date="2026-06-07">
       <description>
         <p>Initial public release.</p>
