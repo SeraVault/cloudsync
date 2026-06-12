@@ -242,6 +242,20 @@ class CloudSyncApp(Adw.Application):
         if self._window:
             GLib.idle_add(self._window.refresh)
 
+    def _init_provider_async(self, provider: str) -> None:
+        try:
+            name = self.init_provider(provider)
+            for acct in self.config.connected_providers:
+                if acct.provider == provider:
+                    acct.display_name = name
+        except Exception as exc:
+            log.error("Could not init provider %s: %s", provider, exc)
+            self._record_activity(
+                "error", f"Could not initialize provider: {exc}", provider
+            )
+        if self._window:
+            GLib.idle_add(self._window.refresh)
+
     def _revalidate_license_async(self) -> None:
         """Background thread: revalidate subscription weekly (offline-safe)."""
         import time
@@ -290,7 +304,18 @@ class CloudSyncApp(Adw.Application):
             if acct.provider == provider:
                 acct.display_name = display_name
                 self.config.save()
-                GLib.idle_add(self._window.refresh)
+                # Engine may not be running if init failed at startup (e.g.
+                # credentials were missing). Start it now that auth succeeded.
+                if provider not in self._providers:
+                    t = threading.Thread(
+                        target=self._init_provider_async,
+                        args=(provider,),
+                        daemon=True,
+                    )
+                    t.start()
+                    self._bg_threads.append(t)
+                elif self._window:
+                    GLib.idle_add(self._window.refresh)
                 return
 
         self.config.connected_providers.append(
@@ -420,6 +445,7 @@ class CloudSyncApp(Adw.Application):
 
     def trigger_sync(self) -> None:
         if not self._providers:
+            log.warning("trigger_sync called but no providers are running")
             if self._window:
                 self._window.show_toast(
                     "Not connected — please add a provider first."
@@ -487,6 +513,7 @@ class CloudSyncApp(Adw.Application):
         """Trigger an immediate sync for a single folder."""
         entry = self._providers.get(folder.provider)
         if not entry:
+            log.warning("trigger_folder_sync called but %s engine is not running", folder.provider)
             if self._window:
                 self._window.show_toast("Provider not connected.")
             return

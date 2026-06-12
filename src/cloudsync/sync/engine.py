@@ -315,6 +315,7 @@ class SyncEngine:
                 self._handle_drive_change(change, folder, local_root, result)
                 self._progress(idx + 1, total)
             self._set_state(token_key, new_token)
+            self._upload_local_changes(folder, local_root, result)
         else:
             # First sync (or forced re-reconcile): full scan
             self._full_sync(folder, local_root, result)
@@ -324,6 +325,34 @@ class SyncEngine:
             # migration check above never forces a redundant full sync again.
             if self._provider_id == "gdrive":
                 self._set_state(stubs_flag_key, "1")
+
+    def _upload_local_changes(self, folder: SyncFolder, local_root: Path, result: SyncResult) -> None:
+        """Upload any local files that are new or newer than the DB records.
+
+        Runs after every incremental sync to catch files the watcher missed
+        (e.g. files added while the app wasn't running, or on filesystems
+        where inotify is unavailable).  Only hits the API for files whose
+        mtime has advanced — everything else is an O(1) DB lookup.
+        """
+        from .gdrive import GDOC_STUB_EXTENSIONS
+        from .onedrive import ONEDRIVE_STUB_EXTENSIONS
+        skip_exts = GDOC_STUB_EXTENSIONS | ONEDRIVE_STUB_EXTENSIONS
+
+        for local_path in local_root.rglob("*"):
+            if not local_path.is_file() or local_path.is_symlink():
+                continue
+            if local_path.suffix in skip_exts:
+                continue
+            rel = local_path.relative_to(local_root).as_posix()
+            state = self._get_file_state(folder.local_path, rel)
+            try:
+                mtime = local_path.stat().st_mtime
+            except OSError:
+                continue
+            if not state:
+                self._upload(local_path, rel, folder, local_root, result)
+            elif mtime > state["local_mtime"] + 1:
+                self._upload(local_path, rel, folder, local_root, result, state["drive_id"])
 
     def _full_sync(self, folder: SyncFolder, local_root: Path, result: SyncResult) -> None:
         """Reconcile local and Drive contents on first sync."""
