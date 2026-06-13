@@ -21,6 +21,17 @@ log = logging.getLogger(__name__)
 _ISO_FMT = "%Y-%m-%dT%H:%M:%S.%fZ"
 _ISO_FMT_SHORT = "%Y-%m-%dT%H:%M:%SZ"
 
+# Temp/swap file patterns that should never be synced.
+# Kept in sync with watcher.py's _is_temp() helper.
+def _is_temp_file(path: Path) -> bool:
+    name = path.name
+    return (
+        name.startswith(".goutputstream-")
+        or name.endswith("~")
+        or name.startswith(".#")
+        or name.startswith(".~")
+    )
+
 
 def _parse_drive_time(ts: str) -> float:
     for fmt in (_ISO_FMT, _ISO_FMT_SHORT):
@@ -254,7 +265,7 @@ class SyncEngine:
                                 Path(folder.local_path).expanduser()
                             ).as_posix(),
                         )
-                        if state and abs(path.stat().st_mtime - state["local_mtime"]) < 1:
+                        if state and abs(path.stat().st_mtime - state["local_mtime"]) <= 1:
                             continue
                     try:
                         self._status("Syncing…")
@@ -327,32 +338,50 @@ class SyncEngine:
                 self._set_state(stubs_flag_key, "1")
 
     def _upload_local_changes(self, folder: SyncFolder, local_root: Path, result: SyncResult) -> None:
-        """Upload any local files that are new or newer than the DB records.
+        """Upload local files that are new or modified since the last scan.
 
-        Runs after every incremental sync to catch files the watcher missed
-        (e.g. files added while the app wasn't running, or on filesystems
-        where inotify is unavailable).  Only hits the API for files whose
-        mtime has advanced — everything else is an O(1) DB lookup.
+        Uses a stored timestamp so only files whose mtime is newer than the
+        previous scan are stat()-checked and looked up in the DB.  This keeps
+        the per-cycle cost proportional to *changed* files rather than total
+        files, making it practical even for very large folders.
         """
+        import os
         from .gdrive import GDOC_STUB_EXTENSIONS
         from .onedrive import ONEDRIVE_STUB_EXTENSIONS
         skip_exts = GDOC_STUB_EXTENSIONS | ONEDRIVE_STUB_EXTENSIONS
 
-        for local_path in local_root.rglob("*"):
-            if not local_path.is_file() or local_path.is_symlink():
-                continue
-            if local_path.suffix in skip_exts:
-                continue
-            rel = local_path.relative_to(local_root).as_posix()
-            state = self._get_file_state(folder.local_path, rel)
-            try:
-                mtime = local_path.stat().st_mtime
-            except OSError:
-                continue
-            if not state:
-                self._upload(local_path, rel, folder, local_root, result)
-            elif mtime > state["local_mtime"] + 1:
-                self._upload(local_path, rel, folder, local_root, result, state["drive_id"])
+        scan_key = f"last_local_scan:{self._provider_id}:{folder.local_path}"
+        last_scan = float(self._get_state(scan_key) or "0")
+        now = time.time()
+
+        for dirpath, _dirs, files in os.walk(str(local_root)):
+            for entry_name in files:
+                if _is_temp_file(Path(entry_name)):
+                    continue
+                entry_path = Path(dirpath) / entry_name
+                if entry_path.suffix in skip_exts:
+                    continue
+                if entry_path.is_symlink():
+                    continue
+                try:
+                    mtime = entry_path.stat().st_mtime
+                except OSError:
+                    continue
+                rel = entry_path.relative_to(local_root).as_posix()
+                # Fast path: file hasn't changed since last scan and is in the
+                # DB with a matching mtime — already synced, skip it.
+                if mtime <= last_scan:
+                    state = self._get_file_state(folder.local_path, rel)
+                    if state and abs(mtime - state["local_mtime"]) <= 1:
+                        continue
+                else:
+                    state = self._get_file_state(folder.local_path, rel)
+                if not state:
+                    self._upload(entry_path, rel, folder, local_root, result)
+                elif mtime > state["local_mtime"] + 1:
+                    self._upload(entry_path, rel, folder, local_root, result, state["drive_id"])
+
+        self._set_state(scan_key, str(now))
 
     def _full_sync(self, folder: SyncFolder, local_root: Path, result: SyncResult) -> None:
         """Reconcile local and Drive contents on first sync."""
@@ -361,9 +390,14 @@ class SyncEngine:
             self._drive.list_files_recursive(folder.remote_folder_id)
         )
 
+        from .gdrive import GDOC_STUB_EXTENSIONS as _GDOC_EXTS
+        from .onedrive import ONEDRIVE_STUB_EXTENSIONS as _OD_EXTS
+        _skip = _GDOC_EXTS | _OD_EXTS
         local_files = [
             p for p in local_root.rglob("*")
             if p.is_file() and not p.is_symlink()
+            and p.suffix not in _skip
+            and not _is_temp_file(p)
         ]
         drive_only = {
             rel: meta for rel, meta in drive_files.items()
@@ -474,8 +508,10 @@ class SyncEngine:
         rel = path.relative_to(local_root).as_posix()
         state = self._get_file_state(folder.local_path, rel)
 
-        # Stub files are read-only local links — never push changes to the cloud.
+        # Stub files and temp files are never pushed to the cloud.
         if path.suffix in GDOC_STUB_EXTENSIONS | ONEDRIVE_STUB_EXTENSIONS:
+            return
+        if _is_temp_file(path):
             return
 
         if event_type == "deleted":
